@@ -18,26 +18,24 @@ db_password = os.getenv("db_password" ,"yAttIg0ShfQM1xXrfZMQ6UiwHPc64OWG")
 # Function to execute SQL queries with parameterization
 def execute_sql_query(query, parameters=None):
     try:
-        connection = psycopg2.connect(
+        with psycopg2.connect(
             host=db_host,
             port=db_port,
             database=db_name,
             user=db_user,
             password=db_password,
-        )
-        cursor = connection.cursor()
-        if parameters:
-            cursor.execute(query, parameters)
-        else:
-            cursor.execute(query)
-        if query.strip().lower().startswith("select"):
-            result = cursor.fetchall()
-        else:
-            connection.commit()
-            result = None
-        cursor.close()
-        connection.close()
-        return result
+        ) as connection:
+            with connection.cursor() as cursor:
+                if parameters:
+                    cursor.execute(query, parameters)
+                else:
+                    cursor.execute(query)
+                if query.strip().lower().startswith("select"):
+                    result = cursor.fetchall()
+                else:
+                    connection.commit()
+                    result = None
+            return result
     except psycopg2.Error as e:
         print("Error occurred:", str(e))
         return None
@@ -62,36 +60,6 @@ def home_page(request: Request):
         {"request": request, "chart1_data": chart1_data, "total_company_breached": total_company_breached, "total_ransomware": total_ransomware},
     )
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # Search Company Page
 @app.get("/search", response_class=HTMLResponse)
 def search_company_page(request: Request):
@@ -100,8 +68,9 @@ def search_company_page(request: Request):
 # Search Company Results
 @app.post("/search/results", response_class=HTMLResponse)
 def search_company_results(request: Request, company: str = Form(...)):
-    query = f"SELECT company_description, data_description, data_date, company_website FROM public.scraped_data_test_web WHERE company ILIKE '%{company}%';"
-    search_results = execute_sql_query(query)
+    sanitized_company = "%" + company.replace("%", "") + "%"
+    query = "SELECT company_description, data_description, data_date, company_website FROM public.scraped_data_test_web WHERE company ILIKE %s;"
+    search_results = execute_sql_query(query, (sanitized_company,))
 
     if search_results:
         return templates.TemplateResponse(
